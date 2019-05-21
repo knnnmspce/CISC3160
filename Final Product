@@ -1,0 +1,115 @@
+from sly import Lexer, Parser
+
+
+class PgLexer(Lexer):
+    tokens = {ID, NUMBER, PLUS, MINUS, TIMES, ASSIGN, DIVIDE, LEFT, RIGHT}
+    ignore = ' \t'
+
+    ID = r'[a-zA-Z_][a-zA-Z0-9_]*'
+    ERROR = r'00[0-9]*'
+    PLUS = r'\+'
+    MINUS = r'-'
+    TIMES = r'\*'
+    DIVIDE = r'/'
+    ASSIGN = r'='
+    LEFT = r'\('
+    RIGHT = r'\)'
+
+    @_(r'\d+')
+    def NUMBER(self, t):
+        t.value = int(t.value)
+        return t
+
+    @_(r'\n+')
+    def newline(self, t):
+        self.lineno += t.value.count('\n')
+
+    def ERROR(self, t):
+        print("ERROR '%s'" % t.value[0])
+        self.index += 1
+
+
+class PgParser(Parser):
+    tokens = PgLexer.tokens
+
+    precedence = (
+        ('left', 'PLUS', 'MINUS'),
+        ('left', 'TIMES', 'DIVIDE'),
+        ('right', 'UMINUS')
+    )
+
+    def __init__(self):
+        self.ids = {}
+        print(self.ids, 'id')
+
+    @_('ID ASSIGN expr')
+    def statement(self, p):
+            self.ids[p.ID] = p.expr
+            print(p.ID, '=', p.expr, 'assign')
+
+    @_('expr')
+    def statement(self, p):
+        print(p.expr, 'expr/result')
+
+    @_('expr PLUS expr')
+    def expr(self, p):
+        print(p.expr0 + p.expr1, 'plus')
+        return p.expr0 + p.expr1
+
+    @_('expr MINUS expr')
+    def expr(self, p):
+        print(p.expr0 - p.expr1, 'minus')
+        return p.expr0 - p.expr1
+
+    @_('expr TIMES expr')
+    def expr(self, p):
+        print(p.expr0 * p.expr1, 'times')
+        return p.expr0 * p.expr1
+
+    @_('expr DIVIDE expr')
+    def expr(self, p):
+        print(p.expr0 / p.expr1, 'divide')
+        return p.expr0 / p.expr1
+
+    @_('MINUS expr %prec UMINUS')
+    def expr(self, p):
+        return -p.expr
+
+    @_('LEFT expr RIGHT')
+    def expr(self, p):
+        if p.expr == 0:
+            print('ERROR')
+            return 0
+        else:
+            print(p.expr, '()')
+            return p.expr
+
+    @_('NUMBER')
+    def expr(self, p):
+        return p.NUMBER
+
+    @_('ID')
+    def expr(self, p):
+        try:
+            return self.ids[p.ID]
+        except LookupError:
+            print("Undefined name '%s'" % p.ID)
+            return 0
+
+
+if __name__ == '__main__':
+    lexer = PgLexer()
+    parser = PgParser()
+
+    print("This is a program that uses a tokenizer and lexer and parser class to create a calculator" '\n'
+          "This Calculator can only calculate positive numbers with the following: -, +, *, /" '\n'
+          "You can also assign numbers to variables"
+          )
+
+    while True:
+        try:
+            text = input()
+        except EOFError:
+            break
+        if text:
+            parser.parse(lexer.tokenize(text))
